@@ -1,0 +1,32 @@
+{
+    "name": "media-editor",
+    "version": "1.0.0",
+    "description": "A web application to edit and convert video, images, and GIFs",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "dev:local": "next dev -H 0.0.0.0 -p 3000",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "@ffmpeg/ffmpeg": "^0.12.15",
+        "@ffmpeg/util": "^0.12.2",
+        "fluent-ffmpeg": "^2.1.3",
+        "next": "^16.1.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20",
+        "@types/react": "^18",
+        "@types/react-dom": "^18",
+        "autoprefixer": "^10.4",
+        "eslint": "^8",
+        "eslint-config-next": "16.1.0",
+        "postcss": "^8",
+        "tailwindcss": "^3",
+        "typescript": "^5"
+    }
+}
