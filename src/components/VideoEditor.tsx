@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { downloadFile, processVideoFile, sanitizeFilename } from '@/utils/fileProcessing';
 
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+
 export default function VideoEditor() {
     const [files, setFiles] = useState<File[]>([]);
     const [videoBitrate, setVideoBitrate] = useState<string>('5000k');
@@ -20,18 +22,38 @@ export default function VideoEditor() {
     const dragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
     const [format, setFormat] = useState<string>('mp4');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [validationMessage, setValidationMessage] = useState<string>('Select one or more video files to continue. Maximum file size per file: 250 MB.');
+
+    const handleFilesSelection = (selectedFiles: File[]) => {
+        if (selectedFiles.length === 0) {
+            setFiles([]);
+            setValidationMessage('Select one or more video files to continue. Maximum file size per file: 250 MB.');
+            return;
+        }
+
+        const oversizedFiles = selectedFiles.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
+        const validFiles = selectedFiles.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
+
+        if (oversizedFiles.length > 0) {
+            const rejectedNames = oversizedFiles.map((file) => `"${file.name}"`).join(', ');
+            setValidationMessage(`${rejectedNames} exceed the 250 MB limit and were not added.`);
+        } else {
+            setValidationMessage(`${validFiles.length} video file${validFiles.length > 1 ? 's are' : ' is'} ready. Maximum allowed size per file: 250 MB.`);
+        }
+
+        setFiles(validFiles);
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const list = Array.from(e.target.files);
-            setFiles(list);
-        }
+        if (e.target.files) handleFilesSelection(Array.from(e.target.files));
     };
 
     const handleProcess = async () => {
         if (files.length === 0) {
-            console.warn('Please select one or more video files');
-            alert('Please select one or more video files');
+            const message = 'Please select one or more video files before processing.';
+            console.warn(message);
+            setValidationMessage(message);
+            alert(message);
             return;
         }
 
@@ -113,7 +135,7 @@ export default function VideoEditor() {
                                 e.preventDefault();
                                 if (e.dataTransfer.files) {
                                     const list = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('video/'));
-                                    if (list.length) setFiles(list);
+                                    handleFilesSelection(list);
                                 }
                             }}
                         >
@@ -146,11 +168,14 @@ export default function VideoEditor() {
                                             : 'Click to upload or drag and drop'}
                                     </p>
                                     <p className="text-gray-500 text-sm mt-1">
-                                        MP4, WebM, OGG or other video formats
+                                        MP4, WebM, OGG or other video formats, up to 250 MB each
                                     </p>
                                 </div>
                             </label>
                         </div>
+                        <p className={`mt-3 text-sm ${files.length > 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                            {validationMessage}
+                        </p>
                     </div>
 
                     {/* Video Settings */}
@@ -165,7 +190,7 @@ export default function VideoEditor() {
                                 onChange={(e) => setVideoBitrate(e.target.value)}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
-                                <option value="1000k">Low (1000 kbps)</option>
+                                <option value="1024k">Low (1024 kbps)</option>
                                 <option value="2500k">Medium (2500 kbps)</option>
                                 <option value="5000k">
                                     High (5000 kbps)

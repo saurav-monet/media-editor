@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react';
 import { downloadFile, processGIFFile, sanitizeFilename } from '@/utils/fileProcessing';
 
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+
 export default function GIFEditor() {
     const [file, setFile] = useState<File | null>(null);
     const [frameRate, setFrameRate] = useState<string>('10');
@@ -12,18 +14,39 @@ export default function GIFEditor() {
     const [optimization, setOptimization] = useState<string>('medium');
     const [sourceType, setSourceType] = useState<string>('gif');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [validationMessage, setValidationMessage] = useState<string>('Select a file to continue. Maximum file size: 250 MB.');
     const inputRef = useRef<HTMLInputElement | null>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files?.[0]) {
-            setFile(e.target.files[0]);
+    const handleFileSelection = (selectedFile: File | null) => {
+        if (!selectedFile) {
+            setFile(null);
+            setValidationMessage('Select a file to continue. Maximum file size: 250 MB.');
+            return;
         }
+
+        if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+            setFile(null);
+            setValidationMessage(`"${selectedFile.name}" is larger than 250 MB. Please choose a smaller file.`);
+            if (inputRef.current) inputRef.current.value = '';
+            return;
+        }
+
+        setFile(selectedFile);
+        setValidationMessage(`Ready to process "${selectedFile.name}". Maximum allowed size per file: 250 MB.`);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        handleFileSelection(e.target.files?.[0] ?? null);
     };
 
     const handleProcess = async () => {
         if (!file) {
-            console.warn('Please select a file');
-            alert('Please select a file');
+            const message = sourceType === 'gif'
+                ? 'Please select a GIF file before processing.'
+                : 'Please select a video file before processing.';
+            console.warn(message);
+            setValidationMessage(message);
+            alert(message);
             return;
         }
 
@@ -142,12 +165,15 @@ export default function GIFEditor() {
                                     </p>
                                     <p className="text-gray-500 text-sm mt-1">
                                         {sourceType === 'gif'
-                                            ? 'GIF files up to 100MB'
-                                            : 'Video files (MP4, WebM, etc.)'}
+                                            ? 'GIF files up to 250 MB'
+                                            : 'Video files up to 250 MB'}
                                     </p>
                                 </div>
                             </label>
                         </div>
+                        <p className={`mt-3 text-sm ${file ? 'text-purple-700' : 'text-red-600'}`}>
+                            {validationMessage}
+                        </p>
                     </div>
 
                     {/* GIF Settings */}

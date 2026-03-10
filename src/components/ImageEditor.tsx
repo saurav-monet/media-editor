@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { downloadFile, processImageFile, sanitizeFilename } from '@/utils/fileProcessing';
 
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
+
 export default function ImageEditor() {
     const [files, setFiles] = useState<File[]>([]);
     const [width, setWidth] = useState<string>('1920');
@@ -19,6 +21,7 @@ export default function ImageEditor() {
     const [imageNaturalHeight, setImageNaturalHeight] = useState<number>(0);
     const [previewHeight, setPreviewHeight] = useState<number>(300);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [validationMessage, setValidationMessage] = useState<string>('Select one or more image files to continue. Maximum file size per file: 250 MB.');
     const [dragState, setDragState] = useState<{ type: 'move' | 'resize'; edge?: string; startX: number; startY: number; startCropX: number; startCropY: number; startCropW: number; startCropH: number } | null>(null);
     const previewRef = useRef<HTMLImageElement | null>(null);
     const previewContainerRef = useRef<HTMLDivElement | null>(null);
@@ -88,22 +91,43 @@ export default function ImageEditor() {
         setDragState(null);
     };
 
+    const handleFilesSelection = (selectedFiles: File[]) => {
+        if (selectedFiles.length === 0) {
+            setFiles([]);
+            setPreviewUrl(null);
+            setValidationMessage('Select one or more image files to continue. Maximum file size per file: 250 MB.');
+            return;
+        }
+
+        const oversizedFiles = selectedFiles.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
+        const validFiles = selectedFiles.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
+
+        if (oversizedFiles.length > 0) {
+            const rejectedNames = oversizedFiles.map((file) => `"${file.name}"`).join(', ');
+            setValidationMessage(`${rejectedNames} exceed the 250 MB limit and were not added.`);
+        } else {
+            setValidationMessage(`${validFiles.length} image file${validFiles.length > 1 ? 's are' : ' is'} ready. Maximum allowed size per file: 250 MB.`);
+        }
+
+        setFiles(validFiles);
+        if (validFiles.length === 1) {
+            const url = URL.createObjectURL(validFiles[0]);
+            setPreviewUrl(url);
+            setCropX(0);
+            setCropY(0);
+            setCropWidth(100);
+            setCropHeight(100);
+        } else {
+            setPreviewUrl(null);
+        }
+
+        if (validFiles.length === 0 && inputRef.current) {
+            inputRef.current.value = '';
+        }
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const list = Array.from(e.target.files);
-            setFiles(list);
-            if (list.length === 1) {
-                const url = URL.createObjectURL(list[0]);
-                setPreviewUrl(url);
-                setCropX(0);
-                setCropY(0);
-                setCropWidth(100);
-                setCropHeight(100);
-            } else {
-                setPreviewUrl(null);
-            }
-        }
+        if (e.target.files) handleFilesSelection(Array.from(e.target.files));
     };
 
     useEffect(() => {
@@ -120,8 +144,10 @@ export default function ImageEditor() {
 
     const handleProcess = async () => {
         if (files.length === 0) {
-            console.warn('Please select one or more image files');
-            alert('Please select one or more image files');
+            const message = 'Please select one or more image files before processing.';
+            console.warn(message);
+            setValidationMessage(message);
+            alert(message);
             return;
         }
 
@@ -203,7 +229,7 @@ export default function ImageEditor() {
                                 e.preventDefault();
                                 if (e.dataTransfer.files) {
                                     const list = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
-                                    if (list.length) setFiles(list);
+                                    handleFilesSelection(list);
                                 }
                             }}
                         >
@@ -237,11 +263,14 @@ export default function ImageEditor() {
                                             : 'Click to upload or drag and drop'}
                                     </p>
                                     <p className="text-gray-500 text-sm mt-1">
-                                        PNG, JPG, WebP, SVG or other image formats
+                                        PNG, JPG, WebP, SVG or other image formats, up to 250 MB each
                                     </p>
                                 </div>
                             </label>
                         </div>
+                        <p className={`mt-3 text-sm ${files.length > 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            {validationMessage}
+                        </p>
                     </div>
 
                     {/* Quick Resolution Presets */}
