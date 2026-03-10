@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { downloadFile, processImageFile, sanitizeFilename } from '@/utils/fileProcessing';
 
 export default function ImageEditor() {

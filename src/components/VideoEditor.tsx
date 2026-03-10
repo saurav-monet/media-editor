@@ -12,7 +12,7 @@ export default function VideoEditor() {
     const [offsetX, setOffsetX] = useState<number>(0); // percent -100..100
     const [offsetY, setOffsetY] = useState<number>(0); // percent -100..100
     const [zoom, setZoom] = useState<number>(100); // percent 100..200
-    const [cropScale, setCropScale] = useState<number>(80); // percent of preview box height
+    const cropScale = 80; // percent of preview box height
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
     const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
@@ -89,13 +89,6 @@ export default function VideoEditor() {
             setPreviewUrl(null);
         };
     }, [files]);
-
-    // when crop box size changes, map it to zoom so server crop roughly matches preview
-    useEffect(() => {
-        const defaultScale = 80;
-        const mappedZoom = Math.round(100 * (defaultScale / cropScale));
-        setZoom(Math.max(100, Math.min(200, mappedZoom)));
-    }, [cropScale]);
 
     return (
         <div className="min-h-screen bg-gray-50">

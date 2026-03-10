@@ -36,6 +36,9 @@ export const processVideoFile = async (
         orientation: string;
         format: string;
         orientationMode?: string;
+        orientationOffsetX?: number;
+        orientationOffsetY?: number;
+        orientationZoom?: number;
     }
 ): Promise<Blob> => {
     const formData = new FormData();
@@ -45,9 +48,9 @@ export const processVideoFile = async (
     formData.append('orientation', settings.orientation);
     if (settings.orientationMode) formData.append('orientationMode', settings.orientationMode);
     formData.append('format', settings.format);
-    if ((settings as any).orientationOffsetX !== undefined) formData.append('orientationOffsetX', String((settings as any).orientationOffsetX));
-    if ((settings as any).orientationOffsetY !== undefined) formData.append('orientationOffsetY', String((settings as any).orientationOffsetY));
-    if ((settings as any).orientationZoom !== undefined) formData.append('orientationZoom', String((settings as any).orientationZoom));
+    if (settings.orientationOffsetX !== undefined) formData.append('orientationOffsetX', String(settings.orientationOffsetX));
+    if (settings.orientationOffsetY !== undefined) formData.append('orientationOffsetY', String(settings.orientationOffsetY));
+    if (settings.orientationZoom !== undefined) formData.append('orientationZoom', String(settings.orientationZoom));
 
     const response = await fetch('/api/process-video', {
         method: 'POST',
