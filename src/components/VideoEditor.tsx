@@ -6,6 +6,7 @@ import { downloadFile, processVideoFile, sanitizeFilename } from '@/utils/filePr
 const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 
 type FileStatus = 'pending' | 'processing' | 'processed' | 'error';
+type FileMetadata = { durationSeconds?: number };
 
 export default function VideoEditor() {
     const [files, setFiles] = useState<File[]>([]);
@@ -28,16 +29,41 @@ export default function VideoEditor() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingFileKey, setProcessingFileKey] = useState<string | null>(null);
     const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({});
+    const [fileMetadata, setFileMetadata] = useState<Record<string, FileMetadata>>({});
     const [validationMessage, setValidationMessage] = useState('Select one or more video files to continue. Maximum file size per file: 250 MB.');
 
     const getFileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
     const effectiveVideoBitrate = videoBitratePreset === 'custom' ? `${customVideoBitrate.trim()}k` : videoBitrate;
     const isMultiFileQueueMode = files.length > 1 && orientation === 'original';
+    const parseBitrateKbps = (bitrate: string) => {
+        const value = Number.parseFloat(bitrate.replace(/k$/i, ''));
+        return Number.isFinite(value) ? value : 0;
+    };
+    const formatFileSize = (bytes: number) => {
+        if (bytes <= 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+        return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+    };
+    const getEstimatedOutputSize = (file: File) => {
+        const durationSeconds = fileMetadata[getFileKey(file)]?.durationSeconds;
+        if (!durationSeconds || durationSeconds <= 0) return 'Calculating...';
+        const totalBitrateKbps = parseBitrateKbps(effectiveVideoBitrate) + parseBitrateKbps(audioBitrate);
+        if (totalBitrateKbps <= 0) return 'N/A';
+        const estimatedBytes = (durationSeconds * totalBitrateKbps * 1000) / 8;
+        return formatFileSize(estimatedBytes);
+    };
 
     const handleFilesSelection = (selectedFiles: File[]) => {
         if (selectedFiles.length === 0) {
             setFiles([]);
             setFileStatuses({});
+            setFileMetadata({});
             setValidationMessage('Select one or more video files to continue. Maximum file size per file: 250 MB.');
             return;
         }
@@ -56,6 +82,7 @@ export default function VideoEditor() {
 
         setFiles(validFiles);
         setFileStatuses(Object.fromEntries(validFiles.map((file) => [getFileKey(file), 'pending' as FileStatus])));
+        setFileMetadata({});
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,6 +212,40 @@ export default function VideoEditor() {
         if (files.length <= 1) return;
         setFileStatuses(Object.fromEntries(files.map((file) => [getFileKey(file), 'pending' as FileStatus])));
     }, [videoBitratePreset, customVideoBitrate, audioBitrate, format, orientation]);
+
+    useEffect(() => {
+        if (files.length === 0) {
+            setFileMetadata({});
+            return;
+        }
+
+        let isCancelled = false;
+        files.forEach((file) => {
+            const fileKey = getFileKey(file);
+            if (fileMetadata[fileKey]?.durationSeconds) return;
+
+            const objectUrl = URL.createObjectURL(file);
+            const probeVideo = document.createElement('video');
+            probeVideo.preload = 'metadata';
+            probeVideo.src = objectUrl;
+            probeVideo.onloadedmetadata = () => {
+                if (!isCancelled) {
+                    setFileMetadata((current) => ({
+                        ...current,
+                        [fileKey]: { durationSeconds: probeVideo.duration },
+                    }));
+                }
+                URL.revokeObjectURL(objectUrl);
+            };
+            probeVideo.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+            };
+        });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [files, fileMetadata]);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -518,6 +579,8 @@ export default function VideoEditor() {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Video</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Original Size</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Estimated Output</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Action</th>
                                     </tr>
@@ -530,6 +593,8 @@ export default function VideoEditor() {
                                         return (
                                             <tr key={fileKey}>
                                                 <td className="px-4 py-3 text-sm text-gray-800">{file.name}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">{formatFileSize(file.size)}</td>
+                                                <td className="px-4 py-3 text-sm text-gray-600">{getEstimatedOutputSize(file)}</td>
                                                 <td className="px-4 py-3">
                                                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(file)}`}>
                                                         {getStatusLabel(file)}
