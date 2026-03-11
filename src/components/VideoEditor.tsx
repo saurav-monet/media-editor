@@ -8,6 +8,8 @@ const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 export default function VideoEditor() {
     const [files, setFiles] = useState<File[]>([]);
     const [videoBitrate, setVideoBitrate] = useState<string>('5000k');
+    const [videoBitratePreset, setVideoBitratePreset] = useState<string>('5000k');
+    const [customVideoBitrate, setCustomVideoBitrate] = useState<string>('');
     const [audioBitrate, setAudioBitrate] = useState<string>('128k');
     const [orientation, setOrientation] = useState<string>('original');
     const [orientationMode, setOrientationMode] = useState<string>('pad');
@@ -48,6 +50,11 @@ export default function VideoEditor() {
         if (e.target.files) handleFilesSelection(Array.from(e.target.files));
     };
 
+    const effectiveVideoBitrate =
+        videoBitratePreset === 'custom'
+            ? `${customVideoBitrate.trim()}k`
+            : videoBitrate;
+
     const handleProcess = async () => {
         if (files.length === 0) {
             const message = 'Please select one or more video files before processing.';
@@ -55,6 +62,17 @@ export default function VideoEditor() {
             setValidationMessage(message);
             alert(message);
             return;
+        }
+
+        if (videoBitratePreset === 'custom') {
+            const customBitrateValue = Number(customVideoBitrate);
+            if (!customVideoBitrate.trim() || !Number.isFinite(customBitrateValue) || customBitrateValue <= 0) {
+                const message = 'Please enter a valid custom video bitrate in kbps.';
+                console.warn(message);
+                setValidationMessage(message);
+                alert(message);
+                return;
+            }
         }
 
         setIsProcessing(true);
@@ -65,14 +83,14 @@ export default function VideoEditor() {
                 const effectiveOrientationMode = files.length > 1 ? 'pad' : orientationMode;
                 console.log('Processing video with settings:', {
                     file: file.name,
-                    videoBitrate,
+                    videoBitrate: effectiveVideoBitrate,
                     audioBitrate,
                     orientation: effectiveOrientation,
                     format,
                 });
 
                 const processedBlob = await processVideoFile(file, {
-                    videoBitrate,
+                    videoBitrate: effectiveVideoBitrate,
                     audioBitrate,
                     orientation: effectiveOrientation,
                     format,
@@ -186,8 +204,14 @@ export default function VideoEditor() {
                                 Video Bitrate
                             </label>
                             <select
-                                value={videoBitrate}
-                                onChange={(e) => setVideoBitrate(e.target.value)}
+                                value={videoBitratePreset}
+                                onChange={(e) => {
+                                    const nextValue = e.target.value;
+                                    setVideoBitratePreset(nextValue);
+                                    if (nextValue !== 'custom') {
+                                        setVideoBitrate(nextValue);
+                                    }
+                                }}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value="1024k">Low (1024 kbps)</option>
@@ -196,7 +220,29 @@ export default function VideoEditor() {
                                     High (5000 kbps)
                                 </option>
                                 <option value="10000k">Very High (10000 kbps)</option>
+                                <option value="custom">Custom</option>
                             </select>
+                            {videoBitratePreset === 'custom' && (
+                                <div className="mt-3">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                        Custom Video Bitrate (kbps)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        inputMode="numeric"
+                                        value={customVideoBitrate}
+                                        onChange={(e) => {
+                                            const nextValue = e.target.value;
+                                            setCustomVideoBitrate(nextValue);
+                                            setVideoBitrate(nextValue.trim() ? `${nextValue.trim()}k` : '');
+                                        }}
+                                        placeholder="e.g. 3500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            )}
                             <p className="text-xs text-gray-500 mt-1">
                                 Lower bitrate = smaller file, higher bitrate = better quality
                             </p>
@@ -446,7 +492,7 @@ export default function VideoEditor() {
                                     ).toFixed(2)} MB
                                 </dd>
                                 <dt className="text-gray-700">Video Bitrate:</dt>
-                                <dd className="font-mono text-gray-600">{videoBitrate}</dd>
+                                <dd className="font-mono text-gray-600">{effectiveVideoBitrate || 'Not set'}</dd>
                                 <dt className="text-gray-700">Audio Bitrate:</dt>
                                 <dd className="font-mono text-gray-600">{audioBitrate}</dd>
                                 <dt className="text-gray-700">Output Format:</dt>
