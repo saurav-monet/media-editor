@@ -18,7 +18,7 @@ export default function Home() {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-6 py-16">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
                     {/* Video Editor Card */}
                     <Link href="/video-editor">
                         <div className="bg-white rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer p-8 h-full">
@@ -44,6 +44,33 @@ export default function Home() {
                                 </li>
                             </ul>
                             <div className="text-primary font-semibold">Get Started →</div>
+                        </div>
+                    </Link>
+
+                    <Link href="/browser-video-editor">
+                        <div className="bg-white rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer p-8 h-full border border-emerald-100">
+                            <div className="text-5xl mb-4">🌐</div>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                Browser Video Editor
+                            </h2>
+                            <p className="text-gray-600 mb-6">
+                                Create browser-safe MP4 output with:
+                            </p>
+                            <ul className="text-gray-700 space-y-2 mb-4">
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> H.264 + AAC MP4
+                                </li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> Faststart + yuv420p
+                                </li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> Resolution & FPS caps
+                                </li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> Device-friendly playback defaults
+                                </li>
+                            </ul>
+                            <div className="text-emerald-700 font-semibold">Open Browser Profile →</div>
                         </div>
                     </Link>
 

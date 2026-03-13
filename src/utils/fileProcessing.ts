@@ -65,6 +65,47 @@ export const processVideoFile = async (
     return await response.blob();
 };
 
+export const processBrowserVideoFile = async (
+    file: File,
+    settings: {
+        videoBitrate: string;
+        audioBitrate: string;
+        orientation: string;
+        format: string;
+        orientationMode?: string;
+        orientationOffsetX?: number;
+        orientationOffsetY?: number;
+        orientationZoom?: number;
+        resolutionPreset: string;
+        frameRateCap: string;
+    }
+): Promise<Blob> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('videoBitrate', settings.videoBitrate);
+    formData.append('audioBitrate', settings.audioBitrate);
+    formData.append('orientation', settings.orientation);
+    if (settings.orientationMode) formData.append('orientationMode', settings.orientationMode);
+    formData.append('format', settings.format);
+    formData.append('resolutionPreset', settings.resolutionPreset);
+    formData.append('frameRateCap', settings.frameRateCap);
+    if (settings.orientationOffsetX !== undefined) formData.append('orientationOffsetX', String(settings.orientationOffsetX));
+    if (settings.orientationOffsetY !== undefined) formData.append('orientationOffsetY', String(settings.orientationOffsetY));
+    if (settings.orientationZoom !== undefined) formData.append('orientationZoom', String(settings.orientationZoom));
+
+    const response = await fetch('/api/process-browser-video', {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Failed to process browser video');
+    }
+
+    return await response.blob();
+};
+
 /**
  * Process image file using FFmpeg API
  */

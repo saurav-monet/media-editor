@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { downloadFile, processVideoFile, sanitizeFilename } from '@/utils/fileProcessing';
+import { downloadFile, processBrowserVideoFile, sanitizeFilename } from '@/utils/fileProcessing';
 
 const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024;
 
 type FileStatus = 'pending' | 'processing' | 'processed' | 'error';
 type FileMetadata = { durationSeconds?: number };
 
-export default function VideoEditor() {
+export default function BrowserVideoEditor() {
     const [files, setFiles] = useState<File[]>([]);
     const [videoBitrate, setVideoBitrate] = useState('5000k');
     const [videoBitratePreset, setVideoBitratePreset] = useState('5000k');
@@ -26,6 +26,8 @@ export default function VideoEditor() {
     const draggingRef = useRef(false);
     const dragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number } | null>(null);
     const [format, setFormat] = useState('mp4');
+    const [resolutionPreset, setResolutionPreset] = useState('1080p');
+    const [frameRateCap, setFrameRateCap] = useState('30');
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingFileKey, setProcessingFileKey] = useState<string | null>(null);
     const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({});
@@ -127,11 +129,13 @@ export default function VideoEditor() {
         setFileStatuses((current) => ({ ...current, [fileKey]: 'processing' }));
 
         try {
-            const processedBlob = await processVideoFile(file, {
+            const processedBlob = await processBrowserVideoFile(file, {
                 videoBitrate: effectiveVideoBitrate,
                 audioBitrate,
                 orientation: effectiveOrientation,
                 format,
+                resolutionPreset,
+                frameRateCap,
                 orientationMode: effectiveOrientationMode,
                 orientationOffsetX: offsetX / 100,
                 orientationOffsetY: offsetY / 100,
@@ -211,7 +215,7 @@ export default function VideoEditor() {
     useEffect(() => {
         if (files.length <= 1) return;
         setFileStatuses(Object.fromEntries(files.map((file) => [getFileKey(file), 'pending' as FileStatus])));
-    }, [videoBitratePreset, customVideoBitrate, audioBitrate, format, orientation]);
+    }, [videoBitratePreset, customVideoBitrate, audioBitrate, format, orientation, resolutionPreset, frameRateCap]);
 
     useEffect(() => {
         if (files.length === 0) {
@@ -253,12 +257,20 @@ export default function VideoEditor() {
                 <div className="bg-white rounded-lg shadow-md p-8">
                     <div className="flex flex-col gap-3 mb-8 md:flex-row md:items-start md:justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">🎥 Video Editor</h1>
-                            <p className="text-gray-600">Upload your video and adjust bitrates, orientation, and format</p>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">🌐 Browser Video Editor</h1>
+                            <p className="text-gray-600">Generate browser-safe MP4 videos with H.264, AAC, faststart, stereo audio, and compatibility-focused defaults.</p>
                         </div>
-                        <a href="/browser-video-editor" className="inline-flex items-center rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100">
-                            Open Browser Video Editor
+                        <a href="/video-editor" className="inline-flex items-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            Switch to Standard Video Editor
                         </a>
+                    </div>
+
+                    <div className="mb-8 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <div className="font-semibold mb-1">Browser Playback Profile</div>
+                        <p>
+                            This editor always exports MP4 using H.264 video, AAC stereo audio, <code className="font-mono">yuv420p</code>,
+                            browser-friendly keyframes, and <code className="font-mono">+faststart</code>.
+                        </p>
                     </div>
 
                     <div className="mb-8">
@@ -295,7 +307,7 @@ export default function VideoEditor() {
                                     <p className="text-gray-700 font-semibold">
                                         {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} selected` : 'Click to upload or drag and drop'}
                                     </p>
-                                    <p className="text-gray-500 text-sm mt-1">MP4, WebM, OGG or other video formats, up to 250 MB each</p>
+                            <p className="text-gray-500 text-sm mt-1">Video files up to 250 MB each. Output is optimized MP4 for browser playback.</p>
                                 </div>
                             </label>
                         </div>
@@ -549,12 +561,38 @@ export default function VideoEditor() {
                             <select
                                 value={format}
                                 onChange={(e) => setFormat(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                disabled
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 focus:outline-none"
                             >
                                 <option value="mp4">MP4 (H.264)</option>
-                                <option value="webm">WebM (VP9)</option>
-                                <option value="ogg">OGG (Theora)</option>
-                                <option value="mov">MOV (ProRes)</option>
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">Fixed to MP4 so the output stays browser-safe across devices.</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-900 mb-2">Resolution Cap</label>
+                            <select
+                                value={resolutionPreset}
+                                onChange={(e) => setResolutionPreset(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="source">Keep Source Resolution</option>
+                                <option value="1080p">Cap at 1080p</option>
+                                <option value="720p">Cap at 720p</option>
+                                <option value="480p">Cap at 480p</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-900 mb-2">Frame Rate Cap</label>
+                            <select
+                                value={frameRateCap}
+                                onChange={(e) => setFrameRateCap(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="source">Keep Source FPS</option>
+                                <option value="30">30 FPS</option>
+                                <option value="24">24 FPS</option>
                             </select>
                         </div>
                     </div>
@@ -588,6 +626,18 @@ export default function VideoEditor() {
                                 <div className="rounded-lg bg-white/70 px-3 py-2">
                                     <div className="text-gray-700 mb-1">Output Format</div>
                                     <div className="font-mono text-gray-600">{format.toUpperCase()}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Resolution Cap</div>
+                                    <div className="font-mono text-gray-600">{resolutionPreset}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Frame Rate Cap</div>
+                                    <div className="font-mono text-gray-600">{frameRateCap === 'source' ? 'source' : `${frameRateCap} fps`}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2 col-span-2 xl:col-span-2">
+                                    <div className="text-gray-700 mb-1">Browser Profile</div>
+                                    <div className="font-mono text-gray-600">H.264 + AAC stereo + yuv420p + faststart</div>
                                 </div>
                             </div>
                         </div>
@@ -642,28 +692,28 @@ export default function VideoEditor() {
                             disabled={files.length === 0 || isProcessing || files.length > 1}
                             className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition-colors"
                         >
-                            {isProcessing ? 'Processing...' : files.length > 1 ? 'Use Keep Original for Multi-File Processing' : 'Process Video'}
+                            {isProcessing ? 'Processing...' : files.length > 1 ? 'Use Keep Original for Multi-File Processing' : 'Process Browser Video'}
                         </button>
                     )}
                 </div>
 
                 <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">❓ Help & Tips</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">❓ Browser Profile Notes</h2>
                     <ul className="space-y-3 text-gray-700">
                         <li>
-                            <strong>Video Bitrate:</strong> Controls video quality and file size. More bitrate = better quality but larger file.
+                            <strong>H.264 + AAC:</strong> The export is locked to a broadly compatible MP4 profile for browser playback across desktop and mobile devices.
                         </li>
                         <li>
-                            <strong>Audio Bitrate:</strong> Controls audio quality. 128kbps is suitable for most uses.
+                            <strong>yuv420p + faststart:</strong> These settings improve playback compatibility and let browsers start playback sooner.
                         </li>
                         <li>
-                            <strong>Orientation:</strong> Multi-file processing is available only with Keep Original. Other orientation modes remain single-file.
+                            <strong>Resolution Cap:</strong> Use 1080p, 720p, or 480p to reduce file size and improve playback smoothness.
                         </li>
                         <li>
-                            <strong>Format:</strong> Choose the output format based on your needs (MP4 is most compatible).
+                            <strong>Frame Rate Cap:</strong> Limit output to 30 FPS or 24 FPS when smooth playback matters more than preserving high source FPS.
                         </li>
                         <li>
-                            <strong>Queue Processing:</strong> When multiple files are selected with Keep Original, process each row and track its status in the table.
+                            <strong>Fallback Path:</strong> Keep using the standard Video Editor whenever you need looser codec/container behavior or want to compare outputs.
                         </li>
                     </ul>
                 </div>
