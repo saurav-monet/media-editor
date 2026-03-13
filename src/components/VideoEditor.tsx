@@ -555,22 +555,34 @@ export default function VideoEditor() {
                     {files.length > 0 && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
                             <h3 className="font-semibold text-gray-900 mb-2">Summary</h3>
-                            <dl className="grid grid-cols-2 gap-2 text-sm">
-                                <dt className="text-gray-700">Files:</dt>
-                                <dd className="font-mono text-gray-600 col-span-3">{files.map((f) => f.name).join(', ')}</dd>
-                                <dt className="text-gray-700">Total Size:</dt>
-                                <dd className="font-mono text-gray-600">
-                                    {(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
-                                </dd>
-                                <dt className="text-gray-700">Video Bitrate:</dt>
-                                <dd className="font-mono text-gray-600">{effectiveVideoBitrate || 'Not set'}</dd>
-                                <dt className="text-gray-700">Audio Bitrate:</dt>
-                                <dd className="font-mono text-gray-600">{audioBitrate}</dd>
-                                <dt className="text-gray-700">Orientation:</dt>
-                                <dd className="font-mono text-gray-600">{orientation}</dd>
-                                <dt className="text-gray-700">Output Format:</dt>
-                                <dd className="font-mono text-gray-600">{format.toUpperCase()}</dd>
-                            </dl>
+                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 text-sm">
+                                <div className="rounded-lg bg-white/70 px-3 py-2 col-span-2 xl:col-span-4">
+                                    <div className="text-gray-700 mb-1">Files</div>
+                                    <div className="font-mono text-gray-600 break-words">{files.map((f) => f.name).join(', ')}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Total Size</div>
+                                    <div className="font-mono text-gray-600">
+                                        {(files.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                                    </div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Video Bitrate</div>
+                                    <div className="font-mono text-gray-600">{effectiveVideoBitrate || 'Not set'}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Audio Bitrate</div>
+                                    <div className="font-mono text-gray-600">{audioBitrate}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Orientation</div>
+                                    <div className="font-mono text-gray-600">{orientation}</div>
+                                </div>
+                                <div className="rounded-lg bg-white/70 px-3 py-2">
+                                    <div className="text-gray-700 mb-1">Output Format</div>
+                                    <div className="font-mono text-gray-600">{format.toUpperCase()}</div>
+                                </div>
+                            </div>
                         </div>
                     )}
                     {isMultiFileQueueMode && (
