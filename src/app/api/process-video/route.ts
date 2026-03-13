@@ -121,6 +121,10 @@ export async function POST(request: NextRequest) {
             // add vf if set
             if (vf) args.push('-vf', vf);
 
+            if (outputFormat.ext === 'mp4' || outputFormat.ext === 'mov') {
+                args.push('-movflags', 'faststart');
+            }
+
             args.push('-c:v', outputFormat.codec, '-y', outputPath);
 
             console.log('Executing ffmpeg', args.join(' '));
