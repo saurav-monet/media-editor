@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import {
+    acquireProcessingSlot,
+    createBusyResponse,
+    createProcessingErrorResponse,
+    mediaProcessingConfig,
+    releaseProcessingSlot,
+    validateUploadSize,
+    validateVideoDuration,
+} from '../_lib/mediaProcessing';
 
 /**
  * Process GIF file using FFmpeg
  * Handles GIF creation from videos and GIF optimization
  */
 export async function POST(request: NextRequest) {
+    if (!acquireProcessingSlot()) {
+        return createBusyResponse();
+    }
+
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -22,6 +35,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
+        validateUploadSize(file, mediaProcessingConfig.maxGifUploadBytes, 'GIF/video');
+
         // Create temporary directory
         const tempDir = path.join(os.tmpdir(), `media-editor-gif-${Date.now()}`);
         if (!fs.existsSync(tempDir)) {
@@ -33,17 +48,21 @@ export async function POST(request: NextRequest) {
             const buffer = await file.arrayBuffer();
             const inputPath = path.join(tempDir, `input.${sourceType === 'video' ? 'mp4' : 'gif'}`);
             fs.writeFileSync(inputPath, Buffer.from(buffer));
+            if (sourceType === 'video') {
+                validateVideoDuration(inputPath, mediaProcessingConfig.maxVideoDurationSeconds, 'Video');
+            }
 
             // Build FFmpeg command
-            let ffmpegCmd = `ffmpeg -i "${inputPath}"`;
+            const args: string[] = ['-threads', mediaProcessingConfig.ffmpegThreads, '-i', inputPath];
+            const filters: string[] = [];
 
             // Set fps
             const fps = parseInt(frameRate) || 10;
-            ffmpegCmd += ` -vf fps=${fps}`;
+            filters.push(`fps=${fps}`);
 
             // Add resizing
             if (width && height) {
-                ffmpegCmd += `,scale=${width}:${height}:force_original_aspect_ratio=decrease`;
+                filters.push(`scale=${width}:${height}:force_original_aspect_ratio=decrease`);
             }
 
             // Add quality/optimization
@@ -54,14 +73,14 @@ export async function POST(request: NextRequest) {
                 'extreme': 32,
             };
             const palette_size = optimizationMap[optimization] || 128;
-            ffmpegCmd += `,split[s0][s1];[s0]palettegen=max_colors=${palette_size}[p];[s1][p]paletteuse`;
+            filters.push(`split[s0][s1];[s0]palettegen=max_colors=${palette_size}[p];[s1][p]paletteuse`);
 
             const outputPath = path.join(tempDir, 'output.gif');
-            ffmpegCmd += ` -y "${outputPath}"`;
+            args.push('-vf', filters.join(','), '-y', outputPath);
 
             // Execute FFmpeg
-            console.log('Executing FFmpeg command:', ffmpegCmd);
-            execSync(ffmpegCmd, { stdio: 'pipe' });
+            console.log('Executing FFmpeg command:', ['ffmpeg', ...args].join(' '));
+            execFileSync('ffmpeg', args, { stdio: 'pipe' });
 
             // Read processed file
             const processedBuffer = fs.readFileSync(outputPath);
@@ -86,9 +105,8 @@ export async function POST(request: NextRequest) {
         }
     } catch (error) {
         console.error('GIF processing error:', error);
-        return NextResponse.json(
-            { error: 'Failed to process GIF', details: String(error) },
-            { status: 500 }
-        );
+        return createProcessingErrorResponse(error, 'Failed to process GIF');
+    } finally {
+        releaseProcessingSlot();
     }
 }

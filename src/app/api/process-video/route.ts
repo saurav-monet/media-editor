@@ -3,12 +3,25 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import {
+    acquireProcessingSlot,
+    createBusyResponse,
+    createProcessingErrorResponse,
+    mediaProcessingConfig,
+    releaseProcessingSlot,
+    validateUploadSize,
+    validateVideoDuration,
+} from '../_lib/mediaProcessing';
 
 /**
  * Process video file using FFmpeg
  * Handles bitrate, audio quality, orientation, and format changes
  */
 export async function POST(request: NextRequest) {
+    if (!acquireProcessingSlot()) {
+        return createBusyResponse();
+    }
+
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -25,6 +38,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
+        validateUploadSize(file, mediaProcessingConfig.maxVideoUploadBytes, 'Video');
+
         // Create temporary directory
         const tempDir = path.join(os.tmpdir(), `media-editor-${Date.now()}`);
         if (!fs.existsSync(tempDir)) {
@@ -38,9 +53,10 @@ export async function POST(request: NextRequest) {
             const origExt = path.extname(originalName) || '.mp4';
             const inputPath = path.join(tempDir, `input${origExt}`);
             fs.writeFileSync(inputPath, Buffer.from(buffer));
+            validateVideoDuration(inputPath, mediaProcessingConfig.maxVideoDurationSeconds, 'Video');
 
             // Build FFmpeg args (avoid shell quoting issues by using execFileSync)
-            const args: string[] = ['-i', inputPath];
+            const args: string[] = ['-threads', mediaProcessingConfig.ffmpegThreads, '-i', inputPath];
 
             // Add video bitrate
             if (videoBitrate) {
@@ -125,6 +141,10 @@ export async function POST(request: NextRequest) {
                 args.push('-movflags', 'faststart');
             }
 
+            if (outputFormat.codec === 'libx264') {
+                args.push('-preset', mediaProcessingConfig.x264Preset);
+            }
+
             args.push('-c:v', outputFormat.codec, '-y', outputPath);
 
             console.log('Executing ffmpeg', args.join(' '));
@@ -166,9 +186,8 @@ export async function POST(request: NextRequest) {
         }
     } catch (error) {
         console.error('Video processing error:', error);
-        return NextResponse.json(
-            { error: 'Failed to process video', details: String(error) },
-            { status: 500 }
-        );
+        return createProcessingErrorResponse(error, 'Failed to process video');
+    } finally {
+        releaseProcessingSlot();
     }
 }

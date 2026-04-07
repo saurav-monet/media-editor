@@ -25,6 +25,16 @@ export const sanitizeFilename = (filename: string): string => {
         .replace(/['",./]/g, '');       // Remove single quotes, double quotes, dots, commas
 };
 
+const getErrorMessage = async (response: Response, fallback: string) => {
+    try {
+        const error = await response.json();
+        return error.details || error.error || fallback;
+    } catch {
+        const text = await response.text();
+        return text || fallback;
+    }
+};
+
 /**
  * Process video file using FFmpeg API
  */
@@ -58,8 +68,7 @@ export const processVideoFile = async (
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Failed to process video');
+        throw new Error(await getErrorMessage(response, 'Failed to process video'));
     }
 
     return await response.blob();
@@ -99,8 +108,7 @@ export const processBrowserVideoFile = async (
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Failed to process browser video');
+        throw new Error(await getErrorMessage(response, 'Failed to process browser video'));
     }
 
     return await response.blob();
@@ -141,8 +149,7 @@ export const processImageFile = async (
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Failed to process image');
+        throw new Error(await getErrorMessage(response, 'Failed to process image'));
     }
 
     return await response.blob();
@@ -177,8 +184,7 @@ export const processGIFFile = async (
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Failed to process GIF');
+        throw new Error(await getErrorMessage(response, 'Failed to process GIF'));
     }
 
     return await response.blob();

@@ -2,13 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import {
+    acquireProcessingSlot,
+    createBusyResponse,
+    createProcessingErrorResponse,
+    mediaProcessingConfig,
+    releaseProcessingSlot,
+    validateUploadSize,
+} from '../_lib/mediaProcessing';
 
 /**
  * Process image file using FFmpeg
  * Handles resizing, compression, rotation, and format conversion
  */
 export async function POST(request: NextRequest) {
+    if (!acquireProcessingSlot()) {
+        return createBusyResponse();
+    }
+
     try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
@@ -26,6 +38,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
+        validateUploadSize(file, mediaProcessingConfig.maxImageUploadBytes, 'Image');
+
         // Create temporary directory
         const tempDir = path.join(os.tmpdir(), `media-editor-img-${Date.now()}`);
         if (!fs.existsSync(tempDir)) {
@@ -41,13 +55,16 @@ export async function POST(request: NextRequest) {
             fs.writeFileSync(inputPath, Buffer.from(buffer));
 
             // Build FFmpeg command
-            let ffmpegCmd = `ffmpeg -i "${inputPath}"`;
+            const args: string[] = ['-threads', mediaProcessingConfig.ffmpegThreads, '-i', inputPath];
 
             // Get image dimensions for crop calculation
             let imageDimensions = { width: 0, height: 0 };
             try {
-                const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${inputPath}"`;
-                const probeOutput = execSync(probeCmd, { encoding: 'utf-8' }).trim();
+                const probeOutput = execFileSync(
+                    'ffprobe',
+                    ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=s=x:p=0', inputPath],
+                    { encoding: 'utf-8' }
+                ).trim();
                 const [w, h] = probeOutput.split('x').map(Number);
                 imageDimensions = { width: w, height: h };
             } catch (e) {
@@ -87,7 +104,7 @@ export async function POST(request: NextRequest) {
             }
 
             if (filters.length > 0) {
-                ffmpegCmd += ` -vf "${filters.join(',')}"`;
+                args.push('-vf', filters.join(','));
             }
 
             // Set quality based on format
@@ -104,13 +121,16 @@ export async function POST(request: NextRequest) {
             const outputFormat = formatMap[format] || formatMap['jpeg'];
             const outputPath = path.join(tempDir, `output.${outputFormat.ext}`);
 
-            ffmpegCmd += ` ${outputFormat.opts} -y "${outputPath}"`;
+            if (outputFormat.opts) {
+                args.push(...outputFormat.opts.split(' '));
+            }
+            args.push('-y', outputPath);
 
             // Execute FFmpeg
             console.log('Image dimensions:', imageDimensions);
             console.log('Crop params:', { cropX, cropY, cropWidth, cropHeight });
-            console.log('Executing FFmpeg command:', ffmpegCmd);
-            execSync(ffmpegCmd, { stdio: 'pipe' });
+            console.log('Executing FFmpeg command:', ['ffmpeg', ...args].join(' '));
+            execFileSync('ffmpeg', args, { stdio: 'pipe' });
 
             // Read processed file
             const processedBuffer = fs.readFileSync(outputPath);
@@ -136,9 +156,8 @@ export async function POST(request: NextRequest) {
         }
     } catch (error) {
         console.error('Image processing error:', error);
-        return NextResponse.json(
-            { error: 'Failed to process image', details: String(error) },
-            { status: 500 }
-        );
+        return createProcessingErrorResponse(error, 'Failed to process image');
+    } finally {
+        releaseProcessingSlot();
     }
 }
